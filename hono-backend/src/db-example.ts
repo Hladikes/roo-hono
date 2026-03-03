@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3'
+/*import Database from 'better-sqlite3'
 
 const db = new Database('test-db.db')
 
@@ -13,7 +13,7 @@ db.exec(`
 `)
 
 const mail = 'b@a.com'
-const username = 'adam'
+const username = 'adam'*/
 
 // const result = db
 //   .prepare(
@@ -24,6 +24,6 @@ const username = 'adam'
 //   )
 //   .run(mail, username)
 
-const result = db.prepare('SELECT * FROM users WHERE username = ?').all('adam')
+/*const result = db.prepare('SELECT * FROM users WHERE username = ?').all('adam')
 
-console.log(result)
+console.log(result)*/
