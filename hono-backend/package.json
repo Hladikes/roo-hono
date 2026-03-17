@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "databaza": "tsx src/db-example.ts",
+    "todo": "tsx watch src/todo.ts",
     "build": "tsc",
     "start": "node dist/index.js"
   },
