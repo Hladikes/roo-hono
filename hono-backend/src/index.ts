@@ -1,56 +1,59 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import Database from 'better-sqlite3'
 import * as z from 'zod'
 import { sValidator } from '@hono/standard-validator'
 
 const app = new Hono()
-app.use(cors())
 
-const users = ['Martin', 'Stefan', 'Robert', 'Maros']
+app.use('*', cors())
 
-app.get('/users', (c) => {
-  return c.json(users)
+const db = new Database('test-db.db')
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE,
+    password TEXT
+)
+`)
+
+const loginSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(3)
 })
 
-app.get('/users/:id', (c) => {
-  const id = parseInt(c.req.param('id'))
+app.post('/login',
+    sValidator('json', loginSchema),
 
-  if (Number.isNaN(id)) {
-    return c.text('Napisal si chujovinu')
-  }
+    (c) => {
 
-  return c.text(users[id])
-})
+        const body = c.req.valid('json')
 
-const schema = z.object({
-  newUsername: z.email(),
-})
+        const user = db
+            .prepare("SELECT * FROM users WHERE email = ? AND password = ?")
+            .get(body.email, body.password)
 
-app.post('/users', sValidator('json', schema), async (c) => {
-  const body = c.req.valid('json')
-  users.push(body.newUsername)
-  return c.text('ok')
-})
+        if (!user) {
+            return c.json({
+                success: false,
+                message: "Wrong email or password"
+            })
+        }
 
-app.delete('/users/:id', (c) => {
-  const id = parseInt(c.req.param('id'))
-
-  if (Number.isNaN(id)) {
-    return c.text('Napisal si chujovinu')
-  }
-
-  users.splice(id, 1)
-
-  return c.text('ok')
-})
+        return c.json({
+            success: true,
+            user
+        })
+    })
 
 serve(
-  {
-    fetch: app.fetch,
-    port: 3000,
-  },
-  (info) => {
-    console.log(`Server is running on http://localhost:${info.port}`)
-  },
+    {
+        fetch: app.fetch,
+        port: 3000
+    },
+    (info) => {
+        console.log(`Server running on http://localhost:${info.port}`)
+    }
 )

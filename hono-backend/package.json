@@ -12,6 +12,7 @@
     "@hono/standard-validator": "^0.2.2",
     "better-sqlite3": "^12.6.2",
     "hono": "^4.11.7",
+    "vue-router": "^4.6.4",
     "zod": "^4.3.6"
   },
   "devDependencies": {
