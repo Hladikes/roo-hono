@@ -7,3 +7,12 @@
   --color-background: #F8FBFC;
   --color-text: #070C0D;
 }
+
+/* DARK MODE */
+.dark {
+  --color-primary: #1f6f85;
+  --color-secondary: #174955;
+  --color-ascent: #2a8aa0;
+  --color-background: #142b32;
+  --color-text: #e6f6fa;
+}
