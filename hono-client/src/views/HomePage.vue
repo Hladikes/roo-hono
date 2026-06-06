@@ -1,62 +1,79 @@
+<!-- HomePage.vue -->
+
 <script setup>
 import { useRouter } from "vue-router";
-import { ref } from "vue";
-import { onMounted } from "vue";
+import { ref, onMounted } from "vue";
 import CookieBanner from "@/component/CookieBanner.vue";
 
 const router = useRouter();
 const dropdownOpen = ref(false);
 const darkMode = ref(false);
+const user = ref(null);
+const lessons = ref([]);
 
 const menu = [
   { name: "Intro", route: "/homepage/introduction" },
   { name: "Grades", route: "/homepage/grades" },
   { name: "Class book", route: "/homepage/Class_Book" },
-];
-
-const lessons = [
-  { name: "MAT", time: "8:00 - 8:45" },
-  { name: "ANJ", time: "8:50 - 9:35" },
-  { name: "PCV", time: "9:45 - 10:30" },
-  { name: "PCV", time: "10:40 - 11:25" },
-  { name: "SJL", time: "11:30 - 12:15" },
-  { name: "OBE", time: "12:20 - 13:05" },
-  { name: "ROO", time: "13:10 - 13:55" },
-  { name: "ROO", time: "14:00 - 14:45" },
+  { name: "Subjects", route: "/homepage/subjects" },
+  { name: "Chat", route: "/homepage/chat" },
 ];
 
 function toggleDarkMode() {
-  const isDark = document.documentElement.classList.toggle("dark")
-
-  localStorage.setItem("dark", isDark ? "1" : "0")
-  darkMode.value = isDark
+  const isDark = document.documentElement.classList.toggle("dark");
+  localStorage.setItem("dark", isDark ? "1" : "0");
+  darkMode.value = isDark;
 }
 
-onMounted(() => {
-  const saved = localStorage.getItem("dark") === "1"
+async function logout() {
+  await fetch("http://localhost:3000/logout", {
+    method: "POST",
+    credentials: "include",
+  }).catch(() => {});
 
-  document.documentElement.classList.toggle("dark", saved)
-  darkMode.value = saved
-})
-
-function logout() {
-  localStorage.removeItem("user")
-
-  router.push("/login")
+  localStorage.removeItem("user");
+  router.push("/login");
 }
 
-function close(e) {
+function close() {
   dropdownOpen.value = false;
 }
 
-onMounted(() => {
+async function loadTimetable(userId) {
+  const day = new Date().getDay();
+  if (day === 0 || day === 6) {
+    lessons.value = [];
+    return;
+  }
+
+  const res = await fetch(`http://localhost:3000/timetable/${userId}/${day}`, {
+    credentials: "include",
+  });
+
+  lessons.value = await res.json();
+}
+
+onMounted(async () => {
+  // dark mode
+  const saved = localStorage.getItem("dark") === "1";
+  document.documentElement.classList.toggle("dark", saved);
+  darkMode.value = saved;
+
+  // close dropdown on click
   window.addEventListener("click", close);
+
+  // načítaj usera
+  const res = await fetch("http://localhost:3000/me", { credentials: "include" });
+  if (res.ok) {
+    user.value = await res.json();
+    await loadTimetable(user.value.id);
+  }
 });
 </script>
 
 <template>
   <div class="flex h-[100vh] bg-[var(--color-background)] text-[var(--color-text)]">
-    <!-- slot -->
+
     <!-- Sidebar -->
     <aside class="w-64 bg-[var(--color-secondary)] text-[var(--color-text)] flex flex-col">
       <button class="p-4 text-2xl font-bold border-b bg-[var(--color-primary)] text-[var(--color-text)]">
@@ -75,12 +92,11 @@ onMounted(() => {
     </aside>
 
     <!-- Main content -->
-    <div class="flex-1 flex flex-col">
+    <div class="flex-1 flex flex-col min-w-0">
+
       <!-- Navbar -->
-      <header
-        class="bg-[var(--color-primary)] text-[var(--color-text)] px-6 py-3 flex justify-between items-center h-[65px] font-bold border-b"
-      >
-        <div></div> <!-- velmi dolezite nechat tam -->
+      <header class="bg-[var(--color-primary)] text-[var(--color-text)] px-6 py-3 flex justify-between items-center h-[65px] font-bold border-b">
+        <div></div>
         <div class="flex items-center gap-4">
           <a href="/homepage/messages" class="text-[var(--color-text)] hover:text-gray-300">
             <span>✉️</span>
@@ -92,7 +108,7 @@ onMounted(() => {
             @click.stop="dropdownOpen = !dropdownOpen"
             class="bg-[var(--color-ascent)] text-[var(--color-text)] px-3 py-1 rounded"
           >
-            User
+            {{ user ? user.email.split("@")[0] : "User" }}
           </button>
 
           <!-- DROPDOWN -->
@@ -100,6 +116,10 @@ onMounted(() => {
             v-if="dropdownOpen"
             class="absolute right-4 top-14 w-48 bg-[var(--color-background)] shadow-lg rounded-md overflow-hidden z-50"
           >
+            <div class="px-4 py-2 text-xs text-gray-400 border-b">
+              {{ user?.email }}
+            </div>
+
             <button
               @click="toggleDarkMode"
               class="w-full text-left px-4 py-2 hover:bg-[var(--color-ascent)]"
@@ -117,18 +137,25 @@ onMounted(() => {
         </div>
       </header>
 
-      <!-- Rozvrh -->
+      <!-- Timetable -->
       <div class="bg-[var(--color-secondary)] text-[var(--color-text)] p-4 border-b border-l border-white">
-        <div class="mb-2 font-semibold">Timetable today 31.03.</div>
+        <div class="mb-2 font-semibold">
+          Timetable today — {{ new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "numeric" }) }}
+        </div>
 
-        <div class="grid grid-cols-8 gap-2 text-center">
+        <div v-if="lessons.length === 0" class="text-sm text-gray-400 italic">
+          No lessons today.
+        </div>
+
+        <div v-else class="grid grid-cols-8 gap-2 text-center">
           <div
             v-for="lesson in lessons"
-            :key="lesson.name"
-            class="bg-[var(--color-ascent)] text-[var(--color-text)] p-2 rounded gap-4"
+            :key="lesson.id"
+            class="bg-[var(--color-ascent)] text-[var(--color-text)] p-2 rounded"
           >
-            <div class="font-bold">{{ lesson.name }}</div>
-            <div class="text-sm">{{ lesson.time }}</div>
+            <div class="font-bold text-sm">{{ lesson.subject }}</div>
+            <div class="text-xs">{{ lesson.start_time }} - {{ lesson.end_time }}</div>
+            <div class="text-xs opacity-70">{{ lesson.classroom }}</div>
           </div>
         </div>
       </div>
@@ -138,6 +165,7 @@ onMounted(() => {
         <router-view />
       </main>
     </div>
+
     <CookieBanner />
   </div>
 </template>

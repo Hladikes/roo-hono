@@ -1,90 +1,39 @@
+<!-- Test.vue -->
+
 <script setup>
 import { ref, onMounted } from "vue";
-
-import {
-  AcademicCapIcon,
-  BookOpenIcon,
-} from "@heroicons/vue/24/outline";
-
-const iconMap = {
-  test: AcademicCapIcon,
-  exam: BookOpenIcon,
-};
-
-const colorMap = {
-  blue: "bg-blue-100 text-blue-700",
-  green: "bg-green-100 text-green-700",
-  orange: "bg-orange-100 text-orange-700",
-  yellow: "bg-yellow-100 text-yellow-700",
-};
+import HomeworkCard from "./HomeworkCard.vue";
+import LoadingSpinner from "./LoadingSpinner.vue";
+import EmptyState from "./EmptyState.vue";
 
 const test = ref([]);
+const loading = ref(true);
 
 onMounted(async () => {
-  const res = await fetch("http://localhost:3000/test");
+  const res = await fetch("http://localhost:3000/test", { credentials: "include" });
   test.value = await res.json();
+  loading.value = false;
 });
 </script>
 
 <template>
   <div class="h-full bg-[var(--color-secondary)] p-6 overflow-y-auto">
+    <h1 class="text-2xl text-[var(--color-text)] font-semibold mb-6">Tests / Exams</h1>
 
-    <h1 class="text-2xl text-[var(--color-text)] font-semibold mb-6">
-       Tests / Exams
-    </h1>
+    <LoadingSpinner v-if="loading" />
+    <EmptyState v-else-if="test.length === 0" message="No tests found." />
 
-    <div class="space-y-6">
-
+    <div v-else class="space-y-6">
       <div v-for="group in test" :key="group.dateLabel">
-
-        <!-- DATE -->
-        <div class="text-sm text-[var(--color-text)] mb-3">
-          {{ group.dateLabel }}
-        </div>
-
-        <!-- ITEMS -->
+        <div class="text-sm text-[var(--color-text)] mb-3">{{ group.dateLabel }}</div>
         <div class="space-y-3">
-
-          <div
+          <HomeworkCard
             v-for="item in group.items"
             :key="item.id"
-            class="bg-[var(--color-background)] rounded-xl shadow-sm p-4 flex gap-4 items-start hover:shadow-md transition"
-          >
-
-            <!-- ICON -->
-            <div
-              :class="colorMap[item.color]"
-              class="p-3 rounded-full"
-            >
-              <component
-                :is="iconMap[item.type]"
-                class="w-6 h-6"
-              />
-            </div>
-
-            <!-- CONTENT -->
-            <div class="flex-1">
-
-              <div class="text-xs text-[var(--color-text)]">
-                {{ item.type.toUpperCase() }} • {{ item.teacher }}
-              </div>
-
-              <div class="font-semibold text-[var(--color-text)]">
-                {{ item.subject }}: {{ item.text }}
-              </div>
-
-              <div v-if="item.time" class="text-xs text-[var(--color-text)] mt-1">
-                {{ item.time }}
-              </div>
-
-            </div>
-
-          </div>
-
+            :item="item"
+          />
         </div>
-
       </div>
-
     </div>
   </div>
 </template>

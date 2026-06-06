@@ -1,3 +1,5 @@
+//index.ts
+
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -8,6 +10,10 @@ import { setCookie, getCookie } from "hono/cookie";
 import crypto from "crypto";
 import { deleteCookie } from "hono/cookie";
 import bcrypt from "bcrypt";
+import { createNodeWebSocket } from "@hono/node-ws";
+import { readFileSync } from "fs";
+import { writeFileSync, mkdirSync } from "fs";
+import { join } from "path";
 
 
 const app = new Hono();
@@ -64,6 +70,8 @@ CREATE TABLE IF NOT EXISTS timetable (
         ON DELETE CASCADE
 );
 
+
+
 CREATE TABLE IF NOT EXISTS grades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
@@ -108,7 +116,47 @@ CREATE TABLE IF NOT EXISTS homework (
     time TEXT,
     color TEXT
 );
+
+CREATE TABLE IF NOT EXISTS subjects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS user_subjects (
+    user_id INTEGER NOT NULL,
+    subject_id INTEGER NOT NULL,
+    PRIMARY KEY (user_id, subject_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE
+);
 `);
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS message_attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id INTEGER NOT NULL,
+    filename TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    mimetype TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+);
+`);
+
+// tabulka pre comments
+db.exec(`
+CREATE TABLE IF NOT EXISTS message_comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`);
+
+mkdirSync("uploads", { recursive: true });
 
 // ==========================
 // SAFE SEED (NO DUPLICATES)
@@ -134,7 +182,14 @@ seedTable("users", "SELECT COUNT(*) as count FROM users", () => {
       'admin@test.com',
       '$2b$10$5BajZgY.0.XFay/7pVCGtuMQlbF/1CvEQN8ykEGP3Em07Od9vx12.',
       'admin'
+    ),
+      (
+      'user1@test.com',
+      '$2b$10$SV.L6IDVs2zEVzsO2PmV2OL7miK26CEfohvoIrORyZlGDaElLVYDG',
+      'student'
     )
+
+
   `).run();
 });
 
@@ -159,29 +214,46 @@ seedTable("homework", "SELECT COUNT(*) as count FROM homework", () => {
 });
 
 seedTable("timetable", "SELECT COUNT(*) as count FROM timetable", () => {
-  db.prepare(
-    `
-    INSERT INTO timetable (
-      user_id,
-      lesson_number,
-      day_of_week,
-      subject,
-      teacher,
-      classroom,
-      lesson_group,
-      start_time,
-      end_time
-    )
+  db.prepare(`
+    INSERT INTO timetable (user_id, lesson_number, day_of_week, subject, teacher, classroom, lesson_group, start_time, end_time)
     VALUES
+    -- Pondelok (1)
+    (1,1,1,'Mathematics','Peter Novák','101','Group 1','08:00','08:45'),
+    (1,2,1,'English','Jana Kováčová','202','Group 1','08:50','09:35'),
+    (1,3,1,'Physics','Tomáš Horváth','Lab1','Group 1','09:45','10:30'),
+    (1,4,1,'Slovak','Monika Vodičková','103','Group 1','10:40','11:25'),
+    (1,5,1,'Chemistry','Eva Blahová','Lab2','Group 1','11:30','12:15'),
+
+    -- Utorok (2)
+    (1,1,2,'Programming','Mária Poláková','GamesLAB','Group 2','08:00','08:45'),
+    (1,2,2,'Mathematics','Peter Novák','101','Group 1','08:50','09:35'),
+    (1,3,2,'English','Jana Kováčová','202','Group 1','09:45','10:30'),
+    (1,4,2,'Biology','Rastislav Krajčí','Lab3','Group 1','10:40','11:25'),
+    (1,5,2,'History','Zuzana Mináčová','104','Group 1','11:30','12:15'),
+    (1,6,2,'Geography','Martin Szabó','105','Group 1','12:20','13:05'),
+
+    -- Streda (3)
     (1,1,3,'Physical Education','Eva Vengerova','Gym','Group 2','08:00','08:45'),
+    (1,2,3,'Programming','Rastislav Kráhenbil','HybridLAB','Group 1','08:50','09:35'),
+    (1,3,3,'Programming','Mária Poláková','GamesLAB','Group 2','09:45','10:30'),
+    (1,4,3,'Programming','Mária Poláková','GamesLAB','Group 2','10:40','11:25'),
+    (1,5,3,'Slovak','Monika Vodičková','103','Group 1','11:30','12:15'),
 
-    (1,2,3,'Programming Practice','Rastislav Kráhenbil','HybridLAB','Group 1','08:50','09:35'),
+    -- Štvrtok (4)
+    (1,1,4,'Mathematics','Peter Novák','101','Group 1','08:00','08:45'),
+    (1,2,4,'Chemistry','Eva Blahová','Lab2','Group 1','08:50','09:35'),
+    (1,3,4,'English','Jana Kováčová','202','Group 1','09:45','10:30'),
+    (1,4,4,'Physics','Tomáš Horváth','Lab1','Group 1','10:40','11:25'),
+    (1,5,4,'Biology','Rastislav Krajčí','Lab3','Group 1','11:30','12:15'),
+    (1,6,4,'History','Zuzana Mináčová','104','Group 1','12:20','13:05'),
 
-    (1,3,3,'Programming Practice','Mária Poláková','GamesLAB','Group 2','09:45','10:30'),
-
-    (1,4,3,'Programming Practice','Mária Poláková','GamesLAB','Group 2','10:40','11:25')
-  `,
-  ).run();
+    -- Piatok (5)
+    (1,1,5,'Slovak','Monika Vodičková','103','Group 1','08:00','08:45'),
+    (1,2,5,'Geography','Martin Szabó','105','Group 1','08:50','09:35'),
+    (1,3,5,'Physical Education','Eva Vengerova','Gym','Group 2','09:45','10:30'),
+    (1,4,5,'Mathematics','Peter Novák','101','Group 1','10:40','11:25'),
+    (1,5,5,'English','Jana Kováčová','202','Group 1','11:30','12:15')
+  `).run();
 });
 
 seedTable("grades", "SELECT COUNT(*) as count FROM grades", () => {
@@ -232,16 +304,38 @@ seedTable(
 );
 
 seedTable("events", "SELECT COUNT(*) as count FROM events", () => {
-  db.prepare(
-    `
-      INSERT INTO events(title,day)
-      VALUES
-      ('Homework',3),
-      ('Test',5),
-      ('Homework',6),
-      ('Test',10)
-    `,
-  ).run();
+  db.prepare(`
+    INSERT INTO events (title, day)
+    VALUES
+    ('Math Test', 3),
+    ('Programming Presentation', 5),
+    ('Homework - Slovak', 6),
+    ('Chemistry Lab', 8),
+    ('English Test', 10),
+    ('School Trip', 12),
+    ('Biology Exam', 15),
+    ('Physics Test', 17),
+    ('Programming Homework', 19),
+    ('Parent Meeting', 20),
+    ('History Test', 22),
+    ('Geography Presentation', 24),
+    ('Final Exam - Math', 27),
+    ('School Event', 30)
+  `).run();
+});
+
+seedTable("subjects", "SELECT COUNT(*) as count FROM subjects", () => {
+  db.prepare(`
+    INSERT INTO subjects (name) VALUES
+    ('Mathematics'), ('English'), ('Programming'), ('Physics')
+  `).run();
+});
+
+seedTable("user_subjects", "SELECT COUNT(*) as count FROM user_subjects", () => {
+  db.prepare(`
+    INSERT INTO user_subjects (user_id, subject_id) VALUES
+    (1, 1), (1, 2), (1, 3)
+  `).run();
 });
 
 // ==========================
@@ -257,6 +351,11 @@ const registerSchema = z.object({
   password: z.string().min(3),
   role: z.enum(["student", "admin"]).default("student"),
 });
+
+function safeUser(user: any) {
+  const { password, ...rest } = user;
+  return rest;
+}
 
 app.post("/login", sValidator("json", loginSchema), async (c) => {
   const { email, password } = c.req.valid("json");
@@ -304,32 +403,61 @@ if (!validPassword) {
     sameSite: "Lax",
   });
 
-  return c.json({ success: true, user });
+  return c.json({ success: true, user: safeUser(user) });
 });
 
 // ==========================
 // ROUTES
 // ==========================
-app.get("/timetable/:userId/:day", (c) => {
-  const parsed = dayParamSchema.safeParse(c.req.param());
+const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
 
-  if (!parsed.success) {
-    return c.json({ message: "Invalid userId or day format" }, 400);
-  }
+app.get("/ws", upgradeWebSocket(() => {
+  return {
+    onOpen(_evt, ws) {
+      console.log("Client connected");
+      ws.send("Connected to server");
+    },
+
+    onMessage(evt, ws) {
+      console.log("Message:", evt.data.toString());
+
+      ws.send("Echo: " + evt.data);
+    },
+
+    onClose() {
+      console.log("Client disconnected");
+    },
+  };
+}));
+
+const server = serve({
+  fetch: app.fetch,
+  port: 3000,
+});
+
+injectWebSocket(server);
+
+
+
+app.get("/timetable/:userId/:day", (c) => {
+  const sessionUser = getSessionUser(c);
+
+  if (!sessionUser) return c.json({ message: "Unauthorized" }, 401);
+
+  const parsed = dayParamSchema.safeParse(c.req.param());
+  if (!parsed.success) return c.json({ message: "Invalid params" }, 400);
 
   const { userId, day } = parsed.data;
 
-  const lessons = db
-    .prepare(
-      `
-      SELECT *
-      FROM timetable
-      WHERE user_id = ?
-      AND day_of_week = ?
-      ORDER BY lesson_number
-    `,
-    )
-    .all(userId, day);
+  if (sessionUser.role !== "admin" && sessionUser.id !== userId) {
+    return c.json({ message: "Forbidden" }, 403);
+  }
+
+  const lessons = db.prepare(`
+    SELECT * FROM timetable
+    WHERE user_id = ? AND day_of_week = ?
+    ORDER BY lesson_number
+  `).all(userId, day);
 
   return c.json(lessons);
 });
@@ -351,19 +479,34 @@ const idSchema = z.object({
   userId: z.string().regex(/^\d+$/),
 });
 
-app.get("/grades/:userId", (c) => {
-  const parsed = idParamSchema.safeParse(c.req.param());
+const homeworkSchema = z.object({
+  date_label: z.string().min(1),
+  type: z.enum(["homework", "test", "exam"]),
+  teacher: z.string().optional(),
+  subject: z.string().min(1),
+  text: z.string().min(1),
+  time: z.string().optional(),
+  color: z.string().optional(),
+});
 
-  if (!parsed.success) {
-    return c.json({ message: "Invalid userId format" }, 400);
+app.get("/grades/:userId", (c) => {
+  const sessionUser = getSessionUser(c);
+
+  if (!sessionUser) {
+    return c.json({ message: "Unauthorized" }, 401);
   }
+
+  const parsed = idParamSchema.safeParse(c.req.param());
+  if (!parsed.success) return c.json({ message: "Invalid userId" }, 400);
 
   const { userId } = parsed.data;
 
-  const grades = db
-    .prepare("SELECT * FROM grades WHERE user_id = ?")
-    .all(userId);
+  // user môže vidieť len svoje dáta, admin vidí všetko
+  if (sessionUser.role !== "admin" && sessionUser.id !== userId) {
+    return c.json({ message: "Forbidden" }, 403);
+  }
 
+  const grades = db.prepare("SELECT * FROM grades WHERE user_id = ?").all(userId);
   return c.json(grades);
 });
 
@@ -462,7 +605,139 @@ app.get("/me", (c) => {
     return c.json({ error: "Invalid session" }, 401);
   }
 
-  return c.json(user);
+  return c.json(safeUser(user));
+});
+
+app.get("/users/:userId/subjects", (c) => {
+  const parsed = idParamSchema.safeParse(c.req.param());
+  if (!parsed.success) return c.json({ message: "Invalid userId" }, 400);
+
+  const { userId } = parsed.data;
+
+  const subjects = db.prepare(`
+    SELECT s.* FROM subjects s
+    JOIN user_subjects us ON us.subject_id = s.id
+    WHERE us.user_id = ?
+  `).all(userId);
+
+  return c.json(subjects);
+});
+
+function getSessionUser(c: any) {
+  const sessionId = getCookie(c, "session");
+  if (!sessionId) return null;
+  return sessions.get(sessionId) ?? null;
+}
+
+// upload endpoint
+app.post("/messages/:id/attachments", async (c) => {
+  const sessionUser = getSessionUser(c);
+  if (!sessionUser) return c.json({ message: "Unauthorized" }, 401);
+
+  const messageId = Number(c.req.param("id"));
+  if (!messageId) return c.json({ message: "Invalid id" }, 400);
+
+  let formData: FormData;
+  try {
+    formData = await c.req.raw.formData();
+  } catch {
+    return c.json({ message: "Failed to parse form data" }, 400);
+  }
+
+  const file = formData.get("file") as File;
+  if (!file) return c.json({ message: "No file provided" }, 400);
+
+  const allowed = ["image/jpeg", "image/png", "image/gif", "application/pdf"];
+  if (!allowed.includes(file.type)) {
+    return c.json({ message: "Invalid file type. Allowed: jpg, png, gif, pdf" }, 400);
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    return c.json({ message: "File too large. Max 5MB" }, 400);
+  }
+
+  const ext = file.name.split(".").pop();
+  const filename = `${crypto.randomUUID()}.${ext}`;
+  const filepath = join("uploads", filename);
+
+  const buffer = await file.arrayBuffer();
+  writeFileSync(filepath, Buffer.from(buffer));
+
+  db.prepare(`
+    INSERT INTO message_attachments (message_id, filename, original_name, mimetype, size)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(messageId, filename, file.name, file.type, file.size);
+
+  return c.json({ success: true, filename, original_name: file.name });
+});
+
+// get attachments
+app.get("/messages/:id/attachments", (c) => {
+  const sessionUser = getSessionUser(c);
+  if (!sessionUser) return c.json({ message: "Unauthorized" }, 401);
+
+  const messageId = Number(c.req.param("id"));
+  const attachments = db.prepare(
+    "SELECT * FROM message_attachments WHERE message_id = ?"
+  ).all(messageId);
+
+  return c.json(attachments);
+});
+// GET comments
+app.get("/messages/:id/comments", (c) => {
+  const sessionUser = getSessionUser(c);
+  if (!sessionUser) return c.json({ message: "Unauthorized" }, 401);
+
+  const messageId = Number(c.req.param("id"));
+  const comments = db.prepare(`
+    SELECT mc.*, u.email FROM message_comments mc
+    JOIN users u ON u.id = mc.user_id
+    WHERE mc.message_id = ?
+    ORDER BY mc.created_at ASC
+  `).all(messageId);
+
+  return c.json(comments);
+});
+
+// POST comment
+app.post("/messages/:id/comments", async (c) => {
+  const sessionUser = getSessionUser(c);
+  if (!sessionUser) return c.json({ message: "Unauthorized" }, 401);
+
+  const messageId = Number(c.req.param("id"));
+  const body = await c.req.json();
+
+  if (!body.text?.trim()) return c.json({ message: "Text is required" }, 400);
+
+  db.prepare(`
+    INSERT INTO message_comments (message_id, user_id, text)
+    VALUES (?, ?, ?)
+  `).run(messageId, sessionUser.id, body.text.trim());
+
+  return c.json({ success: true });
+});
+
+// download attachment
+app.get("/attachments/:filename", (c) => {
+  const sessionUser = getSessionUser(c);
+  if (!sessionUser) return c.json({ message: "Unauthorized" }, 401);
+
+  const filename = c.req.param("filename");
+  const row = db.prepare(
+    "SELECT * FROM message_attachments WHERE filename = ?"
+  ).get(filename) as any;
+
+  if (!row) return c.json({ message: "Not found" }, 404);
+
+  const filepath = join("uploads", filename);
+  const file = readFileSync(filepath);
+
+  return new Response(file, {
+    headers: {
+      "Content-Type": row.mimetype,
+      "Content-Disposition": `attachment; filename="${row.original_name}"`,
+    },
+  });
 });
 
 app.post("/admin/register", sValidator("json", registerSchema), async (c) => {
@@ -509,6 +784,88 @@ app.post("/logout", (c) => {
     success: true,
   });
 });;
+
+// CREATE
+app.post("/homework", sValidator("json", homeworkSchema), (c) => {
+  const sessionUser = getSessionUser(c);
+  if (!sessionUser) return c.json({ message: "Unauthorized" }, 401);
+
+  const data = c.req.valid("json");
+
+  const result = db.prepare(`
+    INSERT INTO homework (date_label, type, teacher, subject, text, time, color)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(data.date_label, data.type, data.teacher ?? null, data.subject, data.text, data.time ?? null, data.color ?? null);
+
+  return c.json({ success: true, id: result.lastInsertRowid });
+});
+
+// READ ONE
+app.get("/homework/:id", (c) => {
+  const sessionUser = getSessionUser(c);
+  if (!sessionUser) return c.json({ message: "Unauthorized" }, 401);
+
+  const id = Number(c.req.param("id"));
+  if (!id) return c.json({ message: "Invalid id" }, 400);
+
+  const row = db.prepare("SELECT * FROM homework WHERE id = ?").get(id);
+  if (!row) return c.json({ message: "Not found" }, 404);
+
+  return c.json(row);
+});
+
+// UPDATE
+app.patch("/homework/:id", sValidator("json", homeworkSchema.partial()), (c) => {
+  const sessionUser = getSessionUser(c);
+  if (!sessionUser) return c.json({ message: "Unauthorized" }, 401);
+
+  const id = Number(c.req.param("id"));
+  if (!id) return c.json({ message: "Invalid id" }, 400);
+
+  const existing = db.prepare("SELECT * FROM homework WHERE id = ?").get(id) as any;
+  if (!existing) return c.json({ message: "Not found" }, 404);
+
+  const data = c.req.valid("json");
+
+  db.prepare(`
+    UPDATE homework SET
+      date_label = ?,
+      type = ?,
+      teacher = ?,
+      subject = ?,
+      text = ?,
+      time = ?,
+      color = ?
+    WHERE id = ?
+  `).run(
+    data.date_label ?? existing.date_label,
+    data.type ?? existing.type,
+    data.teacher ?? existing.teacher,
+    data.subject ?? existing.subject,
+    data.text ?? existing.text,
+    data.time ?? existing.time,
+    data.color ?? existing.color,
+    id
+  );
+
+  return c.json({ success: true });
+});
+
+// DELETE
+app.delete("/homework/:id", (c) => {
+  const sessionUser = getSessionUser(c);
+  if (!sessionUser) return c.json({ message: "Unauthorized" }, 401);
+
+  const id = Number(c.req.param("id"));
+  if (!id) return c.json({ message: "Invalid id" }, 400);
+
+  const existing = db.prepare("SELECT * FROM homework WHERE id = ?").get(id);
+  if (!existing) return c.json({ message: "Not found" }, 404);
+
+  db.prepare("DELETE FROM homework WHERE id = ?").run(id);
+
+  return c.json({ success: true, message: "Deleted successfully" });
+});
 
 app.delete("/admin/users/:id", (c) => {
   const sessionId = getCookie(c, "session");
@@ -573,11 +930,4 @@ app.delete("/admin/users/:id", (c) => {
     success: true,
     message: "User deleted successfully",
   });
-});
-
-// ==========================
-// START SERVER
-// ==========================
-serve({ fetch: app.fetch, port: 3000 }, (info) => {
-  console.log(`Server running on http://localhost:${info.port}`);
 });

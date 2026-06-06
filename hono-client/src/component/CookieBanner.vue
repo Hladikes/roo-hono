@@ -1,3 +1,5 @@
+<!-- CookieBanner.vue -->
+
 <script setup>
 import { ref, onMounted } from "vue";
 

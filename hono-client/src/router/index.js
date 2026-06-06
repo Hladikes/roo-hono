@@ -1,3 +1,5 @@
+// src/router/index.js
+
 import { createRouter, createWebHistory } from "vue-router";
 
 import LoginView from "../views/LoginView.vue";
@@ -10,11 +12,13 @@ import Homework from "../component/Homework.vue";
 import Test from "../component/Test.vue";
 import Messages from "../component/Messages.vue";
 import Help from "../component/Help.vue";
+import Subjects from "../component/Subjects.vue";
 import Admin from "../views/Admin.vue";
 import NotFound from "../views/NotFound.vue";
 import AdminRegister from "../component/AdminRegister.vue";
 import AdminSettings from "../component/AdminSettings.vue";
 import AdminDashboard from "../component/AdminDashboard.vue";
+import LiveChat from "../component/LiveChat.vue";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -67,6 +71,14 @@ const router = createRouter({
           path: "help",
           component: Help,
         },
+        {
+          path: "subjects",
+          component: Subjects,
+        },
+        {
+          path: "chat",
+          component: LiveChat,
+        },
       ],
     },
     {
@@ -88,8 +100,8 @@ const router = createRouter({
         {
           path: "dashboard",
           component: AdminDashboard,
-        }
-      ]
+        },
+      ],
     },
     {
       path: "/:pathMatch(.*)*",

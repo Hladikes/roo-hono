@@ -1,3 +1,5 @@
+<!-- Introduction.vue -->
+
 <script setup>
 import {
   BookOpenIcon,
@@ -53,6 +55,10 @@ function openCard(card) {
 
       case "Class Book":
         router.push("/homepage/Class_Book");
+        break;
+
+      case "Subjects":
+        router.push("/homepage/subjects");
         break;
 
     default:

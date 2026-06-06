@@ -27,12 +27,3 @@ const username = 'adam'*/
 /*const result = db.prepare('SELECT * FROM users WHERE username = ?').all('adam')
 
 console.log(result)*/
-
-
-/*import bcrypt from "bcrypt";
-
-async function test() {
-  console.log(await bcrypt.hash("123456", 10));
-}
-
-test();*/
