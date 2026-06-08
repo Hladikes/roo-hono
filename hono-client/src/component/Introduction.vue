@@ -22,6 +22,7 @@ const messages = ref([]);
 const cards = ref([]);
 const events = ref([]);
 const router = useRouter();
+const loading = ref(true);
 
 const iconMap = {
   ClipboardDocumentListIcon,
@@ -40,27 +41,21 @@ function openCard(card) {
     case "Grades":
       router.push("/homepage/grades");
       break;
-
     case "Homework":
       router.push("/homepage/homework");
       break;
-
     case "Tests":
       router.push("/homepage/test");
       break;
-    
     case "Messages":
       router.push("/homepage/messages");
       break;
-
-      case "Class Book":
-        router.push("/homepage/Class_Book");
-        break;
-
-      case "Subjects":
-        router.push("/homepage/subjects");
-        break;
-
+    case "Class Book":
+      router.push("/homepage/Class_Book");
+      break;
+    case "Subjects":
+      router.push("/homepage/subjects");
+      break;
     default:
       console.log("No route for:", card.title);
   }
@@ -68,20 +63,28 @@ function openCard(card) {
 
 onMounted(async () => {
   try {
-    const messagesRes = await axios.get("http://localhost:3000/messages");
-
-    messages.value = messagesRes.data;
-
-    const cardsRes = await axios.get("http://localhost:3000/cards");
+    const [cardsRes, eventsRes] = await Promise.all([
+      axios.get("http://localhost:3000/cards", { withCredentials: true }),
+      axios.get("http://localhost:3000/events", { withCredentials: true }),
+    ]);
 
     cards.value = cardsRes.data;
-
-    const eventsRes = await axios.get("http://localhost:3000/events");
-
     events.value = eventsRes.data;
   } catch (error) {
-    console.error(error);
+    console.error("cards/events error:", error);
   }
+
+  try {
+    const messagesRes = await axios.get("http://localhost:3000/messages", {
+      withCredentials: true,
+    });
+    messages.value = messagesRes.data;
+  } catch (error) {
+    console.error("messages error:", error);
+    messages.value = [];
+  }
+
+  loading.value = false;
 });
 </script>
 
@@ -98,7 +101,6 @@ onMounted(async () => {
         <div class="space-y-2 text-sm h-[75px] overflow-hidden">
           <p v-for="message in messages" :key="message.id">
             <span class="font-semibold"> {{ message.title }}: </span>
-
             {{ message.content }}
           </p>
         </div>
@@ -112,7 +114,6 @@ onMounted(async () => {
 
         <div>
           <h3 class="font-semibold text-lg">Class Book</h3>
-
           <p class="text-sm text-[var(--color-text)]">View lesson records</p>
         </div>
       </div>
@@ -132,13 +133,8 @@ onMounted(async () => {
         />
 
         <div>
-          <div class="font-semibold">
-            {{ card.title }}
-          </div>
-
-          <div class="text-sm text-[var(--color-text)]">
-            {{ card.subtitle }}
-          </div>
+          <div class="font-semibold">{{ card.title }}</div>
+          <div class="text-sm text-[var(--color-text)]">{{ card.subtitle }}</div>
         </div>
       </div>
     </div>
@@ -162,4 +158,4 @@ onMounted(async () => {
       </div>
     </div>
   </div>
-</template>
+</template> 

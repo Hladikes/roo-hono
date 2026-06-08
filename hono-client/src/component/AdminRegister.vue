@@ -56,6 +56,7 @@ async function registerUser() {
 
     <select v-model="role" class="border p-2 w-full mb-3">
       <option value="student">Student</option>
+      <option value="teacher">Teacher</option>
       <option value="admin">Admin</option>
     </select>
 

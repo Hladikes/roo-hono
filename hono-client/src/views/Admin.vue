@@ -9,69 +9,76 @@ const router = useRouter();
 
 const dropdownOpen = ref(false);
 const darkMode = ref(false);
+const sidebarOpen = ref(false);
 
 function toggleDarkMode() {
   const isDark = document.documentElement.classList.toggle("dark");
-
   localStorage.setItem("dark", isDark ? "1" : "0");
   darkMode.value = isDark;
 }
 
 onMounted(() => {
   const saved = localStorage.getItem("dark") === "1";
-
   document.documentElement.classList.toggle("dark", saved);
   darkMode.value = saved;
+
+  window.addEventListener("click", () => {
+    dropdownOpen.value = false;
+  });
 });
 
 async function logout() {
-  // ak máš session backend → ideálne zavolať aj API
   await fetch("http://localhost:3000/logout", {
     method: "POST",
     credentials: "include",
   }).catch(() => {});
 
   localStorage.removeItem("user");
-
   router.push("/login");
 }
 
-function closeDropdown(e) {
-  dropdownOpen.value = false;
+function navigateTo(route) {
+  router.push(route);
+  sidebarOpen.value = false;
 }
-
-onMounted(() => {
-  window.addEventListener("click", closeDropdown);
-});
 </script>
 
 <template>
-  <div
-    class="flex h-screen bg-[var(--color-background)] text-[var(--color-text)]"
-  >
+  <div class="flex h-screen bg-[var(--color-background)] text-[var(--color-text)]">
+
+    <!-- Overlay pre mobile -->
+    <div
+      v-if="sidebarOpen"
+      class="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden"
+      @click="sidebarOpen = false"
+    />
+
     <!-- SIDEBAR -->
-    <aside class="w-64 bg-[var(--color-secondary)] flex flex-col">
+    <aside
+      :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+      class="fixed md:static md:translate-x-0 z-30 w-64 h-full bg-[var(--color-secondary)] flex flex-col transition-transform duration-300"
+    >
       <div class="p-4 text-2xl font-bold border-b bg-[var(--color-primary)]">
         Admin Panel
       </div>
 
-      <nav class="flex-1 p-2 space-y-2 font-semibold text-xl">
+      <nav class="flex-1 p-2 space-y-2 font-semibold text-xl overflow-y-auto">
         <button
-        @click="router.push('/admin/dashboard')"
+          @click="navigateTo('/admin/dashboard')"
           class="w-full text-left px-3 py-2 rounded hover:bg-[var(--color-ascent)]"
         >
           Dashboard
         </button>
 
         <button
-          @click="router.push('/admin/register')"
+          @click="navigateTo('/admin/register')"
           class="w-full text-left px-3 py-2 rounded hover:bg-[var(--color-ascent)]"
         >
           Users
         </button>
 
         <button
-          @click="router.push('/admin/settings')"
+          @click="navigateTo('/admin/settings')"
           class="w-full text-left px-3 py-2 rounded hover:bg-[var(--color-ascent)]"
         >
           Settings
@@ -80,11 +87,23 @@ onMounted(() => {
     </aside>
 
     <!-- MAIN -->
-    <div class="flex-1 flex flex-col">
+    <div class="flex-1 flex flex-col min-w-0">
+
       <!-- HEADER -->
-      <header
-        class="bg-[var(--color-primary)] px-6 py-3 flex justify-end items-center h-[65px] font-bold relative"
-      >
+      <header class="bg-[var(--color-primary)] px-4 py-3 flex justify-between items-center h-[65px] font-bold relative">
+
+        <!-- Hamburger -->
+        <button
+          @click.stop="sidebarOpen = !sidebarOpen"
+          class="md:hidden flex flex-col gap-1.5 p-1"
+        >
+          <span class="block w-6 h-0.5 bg-[var(--color-text)]"></span>
+          <span class="block w-6 h-0.5 bg-[var(--color-text)]"></span>
+          <span class="block w-6 h-0.5 bg-[var(--color-text)]"></span>
+        </button>
+
+        <div class="hidden md:block"></div>
+
         <div class="flex items-center gap-4">
           <button
             @click.stop="dropdownOpen = !dropdownOpen"
@@ -116,10 +135,11 @@ onMounted(() => {
       </header>
 
       <!-- CONTENT -->
-      <main class="flex-1 p-6 bg-[var(--color-secondary)]">
+      <main class="flex-1 overflow-auto p-4 md:p-6 bg-[var(--color-secondary)]">
         <router-view />
       </main>
     </div>
+
     <CookieBanner />
   </div>
 </template>

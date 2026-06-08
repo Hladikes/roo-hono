@@ -19,6 +19,7 @@ import AdminRegister from "../component/AdminRegister.vue";
 import AdminSettings from "../component/AdminSettings.vue";
 import AdminDashboard from "../component/AdminDashboard.vue";
 import LiveChat from "../component/LiveChat.vue";
+import { useAuthStore } from '../stores/auth'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -114,20 +115,16 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   if (to.path === "/login" || to.path === "/loginform") return true;
 
-  const res = await fetch("http://localhost:3000/me", {
-    credentials: "include",
-  });
+  const auth = useAuthStore()
+  await auth.fetchUser()
 
-  if (!res.ok) return "/login";
+  if (!auth.user) return "/login"
 
-  const user = await res.json();
-
-  // 🔐 admin protection
-  if (to.path.startsWith("/admin") && user.role !== "admin") {
-    return "/admin"; // redirect to admin dashboard if not admin, which will show an error message
+  if (to.path.startsWith("/admin") && auth.user.role !== "admin") {
+    return "/homepage"
   }
 
-  return true;
+  return true
 });
 
 export default router;

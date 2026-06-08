@@ -12,7 +12,7 @@ const average = (arr) =>
   (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2);
 
 onMounted(async () => {
-  const res = await fetch("http://localhost:3000/grades/1", { credentials: "include" });
+  const res = await fetch("http://localhost:3000/grades/me", { credentials: "include" });
   const data = await res.json();
 
   // zgruupuj podla subject

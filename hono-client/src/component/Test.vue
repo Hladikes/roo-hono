@@ -10,7 +10,7 @@ const test = ref([]);
 const loading = ref(true);
 
 onMounted(async () => {
-  const res = await fetch("http://localhost:3000/test", { credentials: "include" });
+  const res = await fetch("http://localhost:3000/homework/test", { credentials: "include" });
   test.value = await res.json();
   loading.value = false;
 });

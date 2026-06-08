@@ -2,24 +2,25 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
+import LoadingSpinner from "./LoadingSpinner.vue";
+import EmptyState from "./EmptyState.vue";
 
 const subjects = ref([]);
 const loading = ref(true);
-
-onMounted(async () => {
-  const res = await fetch(`http://localhost:3000/users/${userId.value}/subjects`, {
-  credentials: "include",
-});
-  subjects.value = await res.json();
-  loading.value = false;
-});
-
 const userId = ref(null);
 
 onMounted(async () => {
-  const res = await fetch("http://localhost:3000/me", { credentials: "include" });
-  const user = await res.json();
+  // najprv nacitaj usera
+  const meRes = await fetch("http://localhost:3000/me", { credentials: "include" });
+  const user = await meRes.json();
   userId.value = user.id;
+
+  // potom nacitaj subjects
+  const res = await fetch(`http://localhost:3000/users/${userId.value}/subjects`, {
+    credentials: "include",
+  });
+  subjects.value = await res.json();
+  loading.value = false;
 });
 </script>
 
@@ -30,17 +31,9 @@ onMounted(async () => {
       My Subjects
     </h1>
 
-    <!-- LOADING -->
-    <div v-if="loading" class="text-[var(--color-text)] text-sm">
-      Loading...
-    </div>
+    <LoadingSpinner v-if="loading" />
+    <EmptyState v-else-if="subjects.length === 0" message="No subjects found." />
 
-    <!-- EMPTY -->
-    <div v-else-if="subjects.length === 0" class="text-[var(--color-text)] text-sm">
-      No subjects found.
-    </div>
-
-    <!-- LIST -->
     <div v-else class="grid grid-cols-3 gap-4">
       <div
         v-for="subject in subjects"

@@ -26,7 +26,7 @@ defineEmits(["edit", "delete"]);
 <template>
   <div class="bg-[var(--color-background)] rounded-xl shadow-sm p-4 flex gap-4 items-start hover:shadow-md transition">
     
-    <div :class="colorMap[item.color] ?? 'bg-gray-100 text-gray-700'" class="p-3 rounded-full">
+    <div :class="colorMap[item.color] ?? 'bg-[var(--color-primary)] text-[var(--color-text)]'" class="p-3 rounded-full">
       <component :is="iconMap[item.type] ?? iconMap.homework" class="w-6 h-6" />
     </div>
 

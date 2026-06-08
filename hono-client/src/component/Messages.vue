@@ -7,16 +7,28 @@ import EmptyState from "./EmptyState.vue";
 
 const messages = ref([]);
 const selected = ref(null);
-const favorites = ref(JSON.parse(localStorage.getItem("favMsgs") || "[]"));
+const favorites = ref([]);
 const comments = ref({});
 const attachments = ref({});
 const uploading = ref(false);
 const uploadError = ref("");
 const loading = ref(true);
 
+const showCompose = ref(false);
+const allUsers = ref([]);
+const composeForm = ref({ title: "", content: "", recipient_ids: [] });
+const composeError = ref("");
+
 onMounted(async () => {
-  const res = await fetch("http://localhost:3000/messages", { credentials: "include" });
-  messages.value = await res.json();
+  const [msgsRes, usersRes, favsRes] = await Promise.all([
+    fetch("http://localhost:3000/messages", { credentials: "include" }),
+    fetch("http://localhost:3000/users", { credentials: "include" }),
+    fetch("http://localhost:3000/favorites", { credentials: "include" }),
+  ]);
+
+  messages.value = await msgsRes.json();
+  allUsers.value = await usersRes.json();
+  favorites.value = await favsRes.json();
   loading.value = false;
 });
 
@@ -31,21 +43,27 @@ function close() {
   uploadError.value = "";
 }
 
-function toggleFav(id) {
-  if (favorites.value.includes(id)) {
-    favorites.value = favorites.value.filter((f) => f !== id);
-  } else {
-    favorites.value.push(id);
-  }
-  localStorage.setItem("favMsgs", JSON.stringify(favorites.value));
-}
-
-async function loadComments(messageId) {
-  const res = await fetch(`http://localhost:3000/messages/${messageId}/comments`, {
+async function toggleFav(id) {
+  const res = await fetch(`http://localhost:3000/favorites/${id}`, {
+    method: "POST",
     credentials: "include",
   });
   const data = await res.json();
-  comments.value[messageId] = data;
+  if (data.favorited) {
+    favorites.value.push(id);
+  } else {
+    favorites.value = favorites.value.filter((f) => f !== id);
+  }
+}
+
+async function loadComments(messageId) {
+  const res = await fetch(
+    `http://localhost:3000/messages/${messageId}/comments`,
+    {
+      credentials: "include",
+    },
+  );
+  comments.value[messageId] = await res.json();
 }
 
 async function addComment(id, text) {
@@ -60,11 +78,13 @@ async function addComment(id, text) {
 }
 
 async function loadAttachments(messageId) {
-  const res = await fetch(`http://localhost:3000/messages/${messageId}/attachments`, {
-    credentials: "include",
-  });
-  const data = await res.json();
-  attachments.value[messageId] = data;
+  const res = await fetch(
+    `http://localhost:3000/messages/${messageId}/attachments`,
+    {
+      credentials: "include",
+    },
+  );
+  attachments.value[messageId] = await res.json();
 }
 
 async function uploadFile(event, messageId) {
@@ -77,11 +97,14 @@ async function uploadFile(event, messageId) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const res = await fetch(`http://localhost:3000/messages/${messageId}/attachments`, {
-    method: "POST",
-    credentials: "include",
-    body: formData,
-  });
+  const res = await fetch(
+    `http://localhost:3000/messages/${messageId}/attachments`,
+    {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    },
+  );
 
   const data = await res.json();
   uploading.value = false;
@@ -93,6 +116,46 @@ async function uploadFile(event, messageId) {
 
   await loadAttachments(messageId);
   event.target.value = "";
+}
+
+async function sendMessage() {
+  composeError.value = "";
+
+  if (!composeForm.value.title || !composeForm.value.content) {
+    composeError.value = "Title and content are required.";
+    return;
+  }
+
+  if (composeForm.value.recipient_ids.length === 0) {
+    composeError.value = "Select at least one recipient.";
+    return;
+  }
+
+  const res = await fetch("http://localhost:3000/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(composeForm.value),
+  });
+
+  if (res.ok) {
+    showCompose.value = false;
+    composeForm.value = { title: "", content: "", recipient_ids: [] };
+    const msgsRes = await fetch("http://localhost:3000/messages", {
+      credentials: "include",
+    });
+    messages.value = await msgsRes.json();
+  }
+}
+
+function toggleRecipient(id) {
+  if (composeForm.value.recipient_ids.includes(id)) {
+    composeForm.value.recipient_ids = composeForm.value.recipient_ids.filter(
+      (r) => r !== id,
+    );
+  } else {
+    composeForm.value.recipient_ids.push(id);
+  }
 }
 
 function downloadUrl(filename) {
@@ -114,9 +177,61 @@ function formatSize(bytes) {
 
 <template>
   <div class="h-full bg-[var(--color-secondary)] p-6 overflow-y-auto">
-    <h1 class="text-2xl font-semibold text-[var(--color-text)] mb-6">
-      Messages
-    </h1>
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-2xl font-semibold text-[var(--color-text)]">Messages</h1>
+      <button
+        @click="showCompose = !showCompose"
+        class="bg-[var(--color-primary)] text-[var(--color-text)] px-4 py-2 rounded-lg text-sm"
+      >
+        {{ showCompose ? "Cancel" : "✉️ New Message" }}
+      </button>
+    </div>
+
+    <!-- COMPOSE FORM -->
+    <div
+      v-if="showCompose"
+      class="bg-[var(--color-background)] rounded-xl p-4 mb-6 space-y-3"
+    >
+      <h2 class="font-semibold text-[var(--color-text)]">New Message</h2>
+      <input
+        v-model="composeForm.title"
+        placeholder="Title"
+        class="w-full border rounded p-2 text-sm"
+      />
+      <textarea
+        v-model="composeForm.content"
+        placeholder="Content"
+        rows="3"
+        class="w-full border rounded p-2 text-sm"
+      />
+      <div>
+        <p class="text-sm font-semibold text-[var(--color-text)] mb-2">
+          Recipients:
+        </p>
+        <div class="space-y-1">
+          <label
+            v-for="user in allUsers"
+            :key="user.id"
+            class="flex items-center gap-2 cursor-pointer text-sm"
+          >
+            <input
+              type="checkbox"
+              :value="user.id"
+              :checked="composeForm.recipient_ids.includes(user.id)"
+              @change="toggleRecipient(user.id)"
+            />
+            {{ user.email }} ({{ user.role }})
+          </label>
+        </div>
+      </div>
+      <p v-if="composeError" class="text-red-500 text-xs">{{ composeError }}</p>
+      <button
+        @click="sendMessage"
+        class="w-full bg-[var(--color-primary)] text-[var(--color-text)] py-2 rounded-lg text-sm"
+      >
+        Send
+      </button>
+    </div>
 
     <LoadingSpinner v-if="loading" />
     <EmptyState
@@ -135,6 +250,9 @@ function formatSize(bytes) {
           <div class="font-semibold flex items-center gap-2">
             {{ msg.title }}
             <span v-if="favorites.includes(msg.id)">⭐</span>
+          </div>
+          <div class="text-xs text-[var(--color-text)] opacity-60 mb-1">
+            From: {{ msg.sender_email }}
           </div>
           <div class="text-sm text-[var(--color-text)] line-clamp-1">
             {{ msg.content }}
@@ -156,7 +274,6 @@ function formatSize(bytes) {
         class="bg-[var(--color-background)] w-full max-w-2xl rounded-xl p-6 shadow-xl max-h-[90vh] overflow-y-auto"
         @click.stop
       >
-        <!-- HEADER -->
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-xl font-semibold">{{ selected.title }}</h2>
           <button @click="close" class="text-gray-400 hover:text-gray-600">
@@ -164,12 +281,14 @@ function formatSize(bytes) {
           </button>
         </div>
 
-        <!-- CONTENT -->
+        <p class="text-xs text-gray-400 mb-3">
+          From: {{ selected.sender_email }}
+        </p>
+
         <p class="mb-4 text-sm text-[var(--color-text)] whitespace-pre-line">
           {{ selected.content }}
         </p>
 
-        <!-- STAR -->
         <button
           class="mb-4 text-sm px-3 py-1 bg-[var(--color-secondary)] rounded"
           @click="toggleFav(selected.id)"
@@ -181,7 +300,6 @@ function formatSize(bytes) {
         <div class="border-t pt-4 mb-4">
           <h3 class="font-semibold mb-3">Attachments</h3>
 
-          <!-- UPLOAD -->
           <label class="flex items-center gap-2 cursor-pointer mb-3">
             <span
               class="px-3 py-1 bg-[var(--color-primary)] text-[var(--color-text)] rounded text-sm"
@@ -204,7 +322,6 @@ function formatSize(bytes) {
             {{ uploadError }}
           </p>
 
-          <!-- ATTACHMENT LIST -->
           <div
             v-if="
               !attachments[selected.id] || attachments[selected.id].length === 0
@@ -215,10 +332,11 @@ function formatSize(bytes) {
           </div>
 
           <div v-else class="space-y-2">
-            v-for="att in attachments[selected.id]" :key="att.id"
-            :href="downloadUrl(att.filename)" target="_blank" class="flex
-            items-center gap-3 p-2 rounded-lg bg-[var(--color-secondary)]
-            hover:bg-[var(--color-ascent)] transition" ><a>
+            <a
+              v-for="att in attachments[selected.id]" :key="att.id"
+              :href="downloadUrl(att.filename)" target="_blank" class="flex
+              items-center gap-3 p-2 rounded-lg bg-[var(--color-secondary)]
+              hover:bg-[var(--color-ascent)] transition" >
               <span class="text-2xl">{{ fileIcon(att.mimetype) }}</span>
               <div class="flex-1 min-w-0">
                 <div class="text-sm font-medium truncate">

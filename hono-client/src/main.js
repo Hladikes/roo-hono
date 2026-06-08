@@ -1,6 +1,7 @@
 // src/main.js
 
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import './styles.css'
@@ -10,7 +11,9 @@ function initTheme() {
   document.documentElement.classList.toggle("dark", isDark)
 }
 
-// spustí sa pri štarte aplikácie
 initTheme()
 
-createApp(App).use(router).mount('#app')
+const app = createApp(App)
+app.use(createPinia())
+app.use(router)
+app.mount('#app')

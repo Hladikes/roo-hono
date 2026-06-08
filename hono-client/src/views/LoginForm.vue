@@ -17,8 +17,6 @@ async function login() {
     password: password.value.trim(),
   };
 
-  console.log("sending:", payload);
-
   const res = await fetch("http://localhost:3000/login", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -27,8 +25,6 @@ async function login() {
 });
 
   const data = await res.json();
-
-  console.log("response:", data);
 
   if (!res.ok || !data.success) {
     error.value = data.message || "Login failed";

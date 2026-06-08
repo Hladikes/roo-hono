@@ -6,48 +6,37 @@ import { ref, onMounted } from "vue";
 const users = ref([]);
 
 async function loadUsers() {
-  const res = await fetch("http://localhost:3000/users");
-  users.value = await res.json();
+  const res = await fetch("http://localhost:3000/users", { credentials: "include" });
+  if (res.ok) {
+    users.value = await res.json();
+  }
 }
 
 async function deleteUser(id) {
-  const confirmed = confirm(
-    "Naozaj chceš zmazať používateľa?"
-  );
-
+  const confirmed = confirm("Naozaj chceš zmazať používateľa?");
   if (!confirmed) return;
 
-  const res = await fetch(
-    `http://localhost:3000/admin/users/${id}`,
-    {
-      method: "DELETE",
-      credentials: "include",
-    }
-  );
+  const res = await fetch(`http://localhost:3000/admin/users/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
 
   const data = await res.json();
-
   alert(data.message);
-
   loadUsers();
 }
 
 function deleteCookie(name) {
-  document.cookie =
-    `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC`;
+  document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC`;
 }
 
 async function resetAllCookies() {
-  const res = await fetch(
-    "http://localhost:3000/users"
-  );
+  const res = await fetch("http://localhost:3000/users", { credentials: "include" });
+  if (!res.ok) return;
 
-  const users = await res.json();
-
-  users.forEach((user) => {
-    deleteCookie(
-      `cookiesAccepted_${user.email}`
-    );
+  const allUsers = await res.json();
+  allUsers.forEach((user) => {
+    deleteCookie(`cookiesAccepted_${user.email}`);
   });
 
   alert("All cookies reset.");
@@ -72,10 +61,7 @@ onMounted(loadUsers);
       </button>
     </div>
 
-    <div
-      class="bg-[var(--color-background)]
-      rounded-xl shadow p-6"
-    >
+    <div class="bg-[var(--color-background)] rounded-xl shadow p-6">
       <h2 class="text-xl font-bold mb-4">
         Users
       </h2>
@@ -96,18 +82,9 @@ onMounted(loadUsers);
             :key="user.id"
             class="border-b"
           >
-            <td class="py-2">
-              {{ user.id }}
-            </td>
-
-            <td class="py-2">
-              {{ user.email }}
-            </td>
-
-            <td class="py-2">
-              {{ user.role }}
-            </td>
-
+            <td class="py-2">{{ user.id }}</td>
+            <td class="py-2">{{ user.email }}</td>
+            <td class="py-2">{{ user.role }}</td>
             <td class="py-2">
               <button
                 @click="deleteUser(user.id)"
@@ -119,7 +96,6 @@ onMounted(loadUsers);
           </tr>
         </tbody>
       </table>
-
     </div>
 
   </div>
